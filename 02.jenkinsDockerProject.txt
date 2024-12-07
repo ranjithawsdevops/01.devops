@@ -1,0 +1,83 @@
+1. install docker pipeline plugin inside jenkins 
+
+2. then create a dockerhub credentials inside jenkins 
+    username with password: docker hub username and password, id: dockerhub
+
+sudo yum install docker -y 
+sudo systemctl restart docker 
+sudo systemctl enable docker
+sudo usermod -a -G docker ramadm
+sudo usermod -a -G docker ec2-user 
+docker login
+ ls -l /var/run/docker.sock
+ sudo chmod 666 /var/run/docker.sock
+
+pipeline {
+    agent any
+    tools {
+        maven 'Maven_Home'
+    }
+    options {
+        timeout(time: 1,unit: 'HOURS')
+    }
+    parameters {
+      booleanParam(name: 'UNITTEST', defaultValue: true, description: 'Enable UnitTests ?') //if this enable we need to run this test
+    }
+	  
+    stages {
+        stage('Checkout')
+		{
+           
+            steps {
+				git branch: 'main', url: 'https://github.com/ranjithawsdevops/jenkins-docker.git'
+            }
+        }
+    
+		stage('PreCheck')
+		{
+	    	steps {
+		      script {
+		       env.BUILDME = "yes" //if yes then run below
+		  
+		    }
+		}
+		}
+        stage('Build') {
+          when {environment name: 'BUILDME', value: 'yes'}
+          
+          steps{
+            script {
+			        if (params.UNITTEST) {  
+					      unitstr = ""
+						} else {
+						  unitstr = "-Dmaven.test.skip=true"
+						}
+						
+						echo "Building jar Component ..."
+						dir ("./addressbook/addressbook_main") {
+						     sh "mvn clean package ${unitstr}"    
+                        }
+				
+
+          }
+        }
+		}
+		  stage('Build Image') 
+          {
+          
+			when {environment name: 'BUILDME', value: 'yes'}
+			steps{
+			script {
+			  docker.withRegistry( 'https://registry.hub.docker.com', 'dockerhub' ) {
+              /* Build Docker Image locally */
+              myImage = docker.build("ramasamy123/addressbook:v1")
+
+              /* Push the container to the Registry */
+              myImage.push()
+          }
+      }
+    }
+  }
+
+    }
+}

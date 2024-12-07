@@ -1,0 +1,294 @@
+
+Jenkins-sonarqube-nexus:
+
+        sudo -i
+adduser cloudadmin 
+passwd cloudadmin 
+vi /etc/sudoers
+root    ALL=(ALL)       ALL
+cloudadmin ALL=(ALL) NOPASSWD: ALL
+jenkins ALL=(ALL) NOPASSWD: ALL
+
+        wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+        rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
+        yum upgrade     # Add required dependencies for the jenkins package                  
+        yum install -y java-17-amazon-corretto
+        yum install jenkins -y
+        systemctl start jenkins
+        systemctl enable jenkins
+        systemctl status jenkins
+        yum install git -y
+
+1. install plugin: Nexus Artifact Uploader, SonarQube Scanner, pipeline stage view
+
+2. create pipeline job
+
+3. Tool: maven --- latest
+
+4. install docker and create container.
+
+   sudo yum install docker -y
+   sudo systemctl start docker
+   sudo docker run -d --name sonarqube -p 9000:9000 sonarqube
+
+   ip:9000
+   username: admin
+   password: admin
+Password: Rajaram@12345
+
+system: manage jenkins -> system -> sonarqube servers -> select environmet variable -> add sonar -> name:sonar, url: http://3.110.44.18:9000/
+     token: sonarqubeserver  -> my account -> security -> name:test, user token, generate -> copy the squ
+     squ_5f8fe422b8e1f9453c9c77d3d36605f0fa551a0d
+
+credential: secret text, paste the squ, id: sonar-token
+
+
+
+sonar -> project -> create local project -> name:test-project, click on use global setting -> create project.
+         with jenkins -> github -> maven -> copy the sh: sh "${mvn}/bin/mvn clean verify sonar:sonar -Dsonar.projectKey=test-project -Dsonar.projectName='test-project'"
+
+sh "mvn clean verify sonar:sonar -Dsonar.projectKey=test-project -Dsonar.projectName='test-project'"
+
+
+--------------------------------------------------------------------------------------------------------------------------------------
+stage('CodeAnalysis') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                withSonarQubeEnv(credentialsId: 'sonar-token', installationName:'sonar') {
+                    sh "mvn clean verify sonar:sonar -Dsonar.projectKey=test-project -Dsonar.projectName='test-project'"
+                  }
+                }
+            }
+        }
+
+----------------------------------------------------------------------------------------------------------
+
+pipeline {
+    agent any
+    
+    tools {
+        maven 'Maven_Home'
+    }
+
+    stages {
+        stage('GitCheckout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/ranjithawsdevops/Devops-sonar.git'
+            }
+        }
+         stage('Compile') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                sh 'mvn compile'
+                }
+            }
+        }
+        stage('Test') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                sh 'mvn test'
+                }
+            }
+        }
+        
+        stage('CodeAnalysis') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                withSonarQubeEnv(credentialsId: 'sonar-token', installationName:'sonar') {
+                    sh "mvn clean verify sonar:sonar -Dsonar.projectKey=test-project -Dsonar.projectName='test-project'"
+                  }
+                }
+            }
+        }
+        
+        stage('PublishArtifactNexus') {
+            steps {
+                dir ("./addressbook/addressbook_main/target"){
+                sh 'mvn test'
+                }
+            }
+        }
+        
+         
+    }
+}
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------
+For Nexus,
+    
+sudo docker run -d -p 8081:8081 --name nexus sonatype/nexus3
+ip:8081
+user name : admin 
+sudo docker exec -it nexus /bin/bash
+cat /nexus-data/admin.password
+4970ccae-c334-4eb8-9b5c-e70622cd45bc            bash-4.4$ 
+nexus server -> brower -> setting -> repository -> create repository -> maven2(hosted) -> testrepository -> snapshot -> create.
+
+          jenkins syntax generate
+
+          nexus -> nexus3, http, url: ip:8081, credentaial: username and password: admin, password:-----, id: nexus-connection,
+          Group id: com.text.app
+          Version: 2.1.1-SNAPSHOT
+          repository: testrepository
+
+          ArtifactId -> testartifactid, type: war, file: addressbook.war
+
+         generate pipeline script.
+
+                            *********************************
+
+pipeline {
+    agent any
+    
+    tools {
+        maven 'Maven_Home'
+    }
+
+    stages {
+        stage('GitCheckout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/ranjithawsdevops/Devops-sonar.git'
+            }
+        }
+         stage('Compile') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                sh 'mvn compile'
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                sh 'mvn package'
+                }
+            }
+        }
+        
+        
+        stage('PublishArtifactNexus') {
+            steps {
+                dir ("./addressbook/addressbook_main/target"){
+                nexusArtifactUploader artifacts: [[artifactId: 'testartifactid', classifier: '', file: 'addressbook.war', type: 'war']], credentialsId: 'nexus-connection', groupId: 'com.text.app', nexusUrl: '65.0.73.132:8081', nexusVersion: 'nexus3', protocol: 'http', repository: 'testrepository', version: '2.1.1-SNAPSHOT'
+                }
+            }
+        }
+        
+         
+    }
+}
+
+
+----------------------------------------------------------------------------------------------------------------------------------
+
+
+For Deploying the application on Tomcat
+
+
+pipeline {
+    agent any
+    
+    tools {
+        maven 'Maven_Home'
+    }
+
+    stages {
+        stage('GitCheckout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/ranjithawsdevops/Devops-sonar.git'
+            }
+        }
+         stage('Compile') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                sh 'mvn compile'
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                sh 'mvn package'
+                }
+            }
+        }
+        
+        
+        stage('PublishArtifactNexus') {
+            steps {
+                dir ("./addressbook/addressbook_main/target"){
+                nexusArtifactUploader artifacts: [[artifactId: 'testartifactid', classifier: '', file: 'addressbook.war', type: 'war']], credentialsId: 'nexus-connection', groupId: 'com.text.app', nexusUrl: '13.126.238.101:8081', nexusVersion: 'nexus3', protocol: 'http', repository: 'testrepository', version: '2.1.1-SNAPSHOT'
+                }
+            }
+        }
+
+    
+        
+         
+    }
+}
+
+
+*****************************************************************************************************************************
+
+For Nexus and deploy the app
+
+
+
+pipeline {
+    agent any
+    
+    tools {
+        maven 'Maven_Home'
+    }
+
+    stages {
+        stage('GitCheckout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/ranjithawsdevops/Devops-sonar.git'
+            }
+        }
+         stage('Compile') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                sh 'mvn compile'
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                dir ("./addressbook/addressbook_main"){
+                sh 'mvn package'
+                }
+            }
+        }
+        
+        
+        stage('PublishArtifactNexus') {
+            steps {
+                dir ("./addressbook/addressbook_main/target"){
+                nexusArtifactUploader artifacts: [[artifactId: 'testartifactid', classifier: '', file: 'addressbook.war', type: 'war']], credentialsId: 'nexus-connection', groupId: 'com.text.app', nexusUrl: '65.0.73.132:8081', nexusVersion: 'nexus3', protocol: 'http', repository: 'testrepository', version: '2.1.1-SNAPSHOT'
+                }
+            }
+        }
+        
+        stage('Install Apache Tomcat Server') {
+            steps {
+                sh 'sudo wget https://archive.apache.org/dist/tomcat/tomcat-8/v8.5.24/bin/apache-tomcat-8.5.24.tar.gz'
+                sh 'sudo tar -xzvf apache-tomcat-8.5.24.tar.gz'
+                sh 'sudo chown -R cloudadmin:cloudadmin apache-tomcat-8.5.24'
+                sh 'sudo cp tomcat-users.xml apache-tomcat-8.5.24/conf/tomcat-users.xml'
+                sh 'sudo cp context.xml apache-tomcat-8.5.24/webapps/manager/META-INF/context.xml'
+                sh 'sudo sed -i "s/8080/8082/g" apache-tomcat-8.5.24/conf/server.xml'
+        }
+}        
+     stage('Deploy Sample Application To Tomcat Server') {
+            steps {
+                sh 'sudo cp addressbook/addressbook_main/target/addressbook.war apache-tomcat-8.5.24/webapps/'
+                sh 'sudo runuser -l cloudadmin -c "/var/lib/jenkins/workspace/jenkins-nexus/apache-tomcat-8.5.24/bin/startup.sh"'
+            }
+        }
+         
+    }
+}
