@@ -1,0 +1,68 @@
+
+sudo yum install -y yum-utils
+
+sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+
+sudo yum -y install terraform
+
+terraform --version
+
+aws configure 
+
+
+pipeline {
+    agent none
+    options {
+        timeout(time: 1,unit: 'HOURS')
+    }
+     stages {
+        stage('Checkout')
+		{
+            agent { label 'slave' }
+            steps {
+				    git branch: 'main', 
+				    credentialsId: 'gitlab_user',
+				    url: 'https://github.com/ranjithawsdevops/jenkins-k8s-cluster.git'
+
+            }
+        }
+    
+		stage('PreCheck')
+		{
+		    agent { label 'slave' }
+			   
+	    	steps {
+		      script {
+		       env.BUILDME = "yes" //if yes then run below
+		  
+		    }
+		}
+		}
+     	
+        stage('Deploy Terraform') 
+          {
+          agent { label 'slave' }
+			when {environment name: 'BUILDME', value: 'yes'}
+			steps {
+
+			  script {
+			    dir('dev') {
+	      
+			        sh 'ls'
+			        sh 'terraform init'
+                                       sh 'terraform plan'
+                                       sh 'terraform apply --auto-approve'
+			    }
+			  }
+      
+    }
+  }
+		 
+    }
+}
+
+               sh 'ls'
+	       sh 'terraform init -reconfigure'
+                sh 'terraform plan'
+                sh 'terraform destroy -auto-approve'
+
