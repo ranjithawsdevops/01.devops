@@ -1,0 +1,79 @@
+vi /etc/sudoers
+root    ALL=(ALL)       ALL
+cloudadmin ALL=(ALL) NOPASSWD: ALL
+jenkins ALL=(ALL) NOPASSWD: ALL
+
+1. aws configure 
+as ec2-user,
+
+sudo curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+sudo unzip awscliv2.zip
+sudo ./aws/install
+sudo vi .bash_profile
+
+PATH=bin:/usr/local/bin/aws
+export PATH
+
+aws configure
+
+
+    curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.31.2/2024-11-15/bin/linux/amd64/kubectl
+    ls
+    chmod +x kubectl
+    sudo mv kubectl /usr/local/bin/
+    sudo kubectl version --client
+    kubectl version --client
+
+aws configure
+
+aws eks --region ap-south-1 update-kubeconfig --name devcluster 
+
+kubectl get ns 
+
+
+
+
+pipeline {
+    agent any
+    options {
+        timeout(time: 1,unit: 'HOURS')
+    }
+     stages {
+        stage('Checkout')
+		{
+            
+            steps {
+				git branch: 'main', url: 'https://github.com/ranjithawsdevops/jenkins-k8s-deploy.git'
+
+            }
+        }
+    
+		stage('PreCheck')
+		{
+		    			   
+	    	steps {
+		      script {
+		       env.BUILDME = "yes" //if yes then run below
+		  
+		    }
+		}
+		}
+     	
+        stage('Deploy Kubernates') 
+          {
+          
+			when {environment name: 'BUILDME', value: 'yes'}
+			steps{
+			script {
+                        sh 'sudo aws eks --region ap-south-1 update-kubeconfig --name devcluster'
+                        sh 'sudo kubectl apply -f ns.yaml'
+                        sh 'sudo kubectl apply -f newIngressctrl.yaml'
+                   //     sh 'sudo kubectl apply -f webcon.yaml'			  
+			 
+			  }
+      
+    }
+  }
+		 
+ }
+}
