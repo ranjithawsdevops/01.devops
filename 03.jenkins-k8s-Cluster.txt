@@ -1,3 +1,7 @@
+vi /etc/sudoers
+root    ALL=(ALL)       ALL
+cloudadmin ALL=(ALL) NOPASSWD: ALL
+jenkins ALL=(ALL) NOPASSWD: ALL
 
 sudo yum install -y yum-utils
 
@@ -11,25 +15,23 @@ aws configure
 
 
 pipeline {
-    agent none
+    agent any
     options {
         timeout(time: 1,unit: 'HOURS')
     }
      stages {
         stage('Checkout')
 		{
-            agent { label 'slave' }
+            
             steps {
-				    git branch: 'main', 
-				    credentialsId: 'gitlab_user',
-				    url: 'https://github.com/ranjithawsdevops/jenkins-k8s-cluster.git'
+				   git branch: 'main', url: 'https://github.com/ranjithawsdevops/jenkins-k8s-cluster.git'
 
             }
         }
     
 		stage('PreCheck')
 		{
-		    agent { label 'slave' }
+		   
 			   
 	    	steps {
 		      script {
@@ -41,17 +43,16 @@ pipeline {
      	
         stage('Deploy Terraform') 
           {
-          agent { label 'slave' }
+          
 			when {environment name: 'BUILDME', value: 'yes'}
 			steps {
 
 			  script {
 			    dir('dev') {
-	      
 			        sh 'ls'
-			        sh 'terraform init'
-                                       sh 'terraform plan'
-                                       sh 'terraform apply --auto-approve'
+			        sh 'sudo terraform init'
+                                       sh 'sudo terraform plan'
+                                       sh 'sudo terraform apply --auto-approve'
 			    }
 			  }
       
@@ -60,6 +61,7 @@ pipeline {
 		 
     }
 }
+
 
                sh 'ls'
 	       sh 'terraform init -reconfigure'
